@@ -31,6 +31,7 @@ Object.defineProperty(this, "addonManager", {
 
 const B2G_ID = "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}";
 const GRAPHENE_ID = "{d1bfe7d9-c01e-4237-998b-7b5f960a4314}";
+const HIRO_ID = "{116ffc54-8cf8-4b69-bc68-b31e7bd3a11}";
 
 /**
  * This is a wrapper around amIAddonManager.mapURIToAddonID which always returns
@@ -43,6 +44,7 @@ module.exports = function mapURIToAddonID(uri, id) {
       || Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT
       || Services.appinfo.ID == B2G_ID
       || Services.appinfo.ID == GRAPHENE_ID
+      || Services.appinfo.ID == HIRO_ID
       || !uri
       || !addonManager) {
     return false;

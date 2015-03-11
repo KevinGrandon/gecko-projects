@@ -1130,3 +1130,6 @@ pref("gfx.touch.resample", false);
 #ifdef MOZ_GRAPHENE
 #include ../graphene/graphene.js
 #endif
+#ifdef MOZ_HIRO
+#include ../hiro/hiro.js
+#endif

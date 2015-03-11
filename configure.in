@@ -4187,6 +4187,10 @@ if test -n "$MOZ_GRAPHENE"; then
     AC_DEFINE(MOZ_GRAPHENE)
 fi
 
+if test -n "$MOZ_HIRO"; then
+    AC_DEFINE(MOZ_HIRO)
+fi
+
 if test -n "$MOZ_MULET"; then
     AC_DEFINE(MOZ_MULET)
 fi

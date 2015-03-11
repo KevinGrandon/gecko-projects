@@ -330,7 +330,7 @@ var shell = {
                                .getInterface(Ci.nsIWebNavigation);
     webNav.sessionHistory = Cc["@mozilla.org/browser/shistory;1"].createInstance(Ci.nsISHistory);
 
-#ifdef MOZ_GRAPHENE
+#ifdef MOZ_HIRO
     webNav.QueryInterface(Ci.nsIDocShell).windowDraggingAllowed = true;
 #endif
 

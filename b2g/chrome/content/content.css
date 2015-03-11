@@ -18,7 +18,7 @@ xul|window xul|scrollbar {
   }
 }
 
-%ifdef MOZ_GRAPHENE
+%ifdef MOZ_HIRO
 .moz-noscrollbars > xul|scrollbar {
   display: none;
 }
@@ -97,7 +97,7 @@ xul|scrollbarbutton {
   background-image: none !important;
 }
 
-%ifndef MOZ_GRAPHENE
+%ifndef MOZ_HIRO
 /* -moz-touch-enabled? media elements */
 :-moz-any(video, audio) > xul|videocontrols {
   -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#touchControls");

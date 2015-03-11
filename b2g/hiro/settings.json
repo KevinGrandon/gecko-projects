@@ -1,0 +1,4 @@
+{
+  "debugger.remote-mode": "adb-devtools",
+  "apz.overscroll.enabled": false
+}
