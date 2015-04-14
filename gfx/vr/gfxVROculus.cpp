@@ -288,6 +288,9 @@ HMDInfoOculus::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRi
 
   uint32_t caps = ovrDistortionCap_Chromatic | ovrDistortionCap_Vignette; // XXX TODO add TimeWarp
 
+  mZNear = zNear;
+  mZFar = zFar;
+
   // get eye parameters and create the mesh
   for (uint32_t eye = 0; eye < NumEyes; eye++) {
     mEyeFOV[eye] = eye == 0 ? aFOVLeft : aFOVRight;
