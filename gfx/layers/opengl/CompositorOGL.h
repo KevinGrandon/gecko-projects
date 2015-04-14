@@ -265,7 +265,7 @@ public:
 
   virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) override;
 
-  virtual void PrepareViewport(const gfx::IntSize& aSize) override;
+  virtual void PrepareViewport(const gfx::IntSize& aSize);
 
 
 #ifdef MOZ_DUMP_PAINTING
