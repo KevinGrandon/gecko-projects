@@ -138,6 +138,10 @@ ContainerRenderVR(ContainerT* aContainer,
 {
   RefPtr<CompositingRenderTarget> surface, eyeSurface[2];
 
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr(">>> ContainerRenderVR [%p]\n", aContainer);
+  }
+  
   Compositor* compositor = aManager->GetCompositor();
 
   RefPtr<CompositingRenderTarget> previousTarget = compositor->GetCurrentRenderTarget();
@@ -174,6 +178,9 @@ ContainerRenderVR(ContainerT* aContainer,
   gfx::Matrix4x4 origTransform = aContainer->GetEffectiveTransform();
 
   for (uint32_t eye = 0; eye < 2; eye++) {
+    if (gfxUtils::sDumpDebug) {
+      printf_stderr(" -- ContainerRenderVR [%p] EYE %d\n", aContainer, eye);
+    }
     eyeSurface[eye] = compositor->CreateRenderTarget(eyeRect, INIT_MODE_CLEAR);
     if (!eyeSurface[eye]) {
       compositor->SetRenderTarget(previousTarget);
@@ -222,6 +229,10 @@ ContainerRenderVR(ContainerT* aContainer,
     }
   }
 
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr(" -- ContainerRenderVR [%p] after child layers\n", aContainer);
+  }
+  
   aContainer->ReplaceEffectiveTransform(origTransform);
 
   // bind and draw each eye to the intermediate surface
@@ -259,6 +270,10 @@ ContainerRenderVR(ContainerT* aContainer,
   // rendered when the element is fullscreen, so the visibleRect will be right anyway.
   aManager->GetCompositor()->DrawQuad(rect, clipRect, vrEffect, opacity,
                                       aContainer->GetEffectiveTransform());
+
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr("<<< ContainerRenderVR [%p]\n", aContainer);
+  }
 }
 
 /* all of the prepared data that we need in RenderLayer() */
