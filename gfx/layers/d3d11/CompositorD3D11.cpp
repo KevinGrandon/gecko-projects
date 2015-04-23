@@ -18,6 +18,7 @@
 #include "gfxPrefs.h"
 #include "gfxCrashReporterUtils.h"
 #include "gfxVR.h"
+#include "gfxUtils.h"
 
 #include "mozilla/EnumeratedArray.h"
 
@@ -1020,6 +1021,10 @@ CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
                             Rect* aClipRectOut,
                             Rect* aRenderBoundsOut)
 {
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr(">>>> BeginFrame %d %d %d %d\n", aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
+  }
+  
   // Don't composite if we are minimised. Other than for the sake of efficency,
   // this is important because resizing our buffers when mimised will fail and
   // cause a crash when we're restored.
@@ -1147,6 +1152,10 @@ CompositorD3D11::EndFrame()
   }
 
   mCurrentRT = nullptr;
+
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr("<<<< EndFrame\n");
+  }
 }
 
 void
