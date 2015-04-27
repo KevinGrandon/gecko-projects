@@ -191,6 +191,14 @@ ContainerRenderVR(ContainerT* aContainer,
       return;
     }
 
+    {
+      compositor->SetRenderTarget(eyeSurface[eye]);
+      Rect sr(0, 0, eyeRect.width, eyeRect.height);
+      EffectChain solidEffect(aContainer);
+      solidEffect.mPrimaryEffect = new EffectSolidColor(Color(eye == 0 ? 1.0 : 0.0, eye == 1 ? 1.0 : 0.0, 0.0, 1.0));
+      aManager->GetCompositor()->DrawQuad(sr, sr, solidEffect, 1.0, gfx::Matrix4x4());
+    }
+
     int lastLayerWasNativeVR = -1;
     const gfx::Matrix4x4& proj = aHMD->GetEyeProjectionMatrix(eye);
 

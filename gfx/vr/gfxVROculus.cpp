@@ -264,9 +264,16 @@ HMDInfoOculus::HMDInfoOculus(ovrHmd aHMD)
 
   nsCOMPtr<nsIScreenManager> screenmgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
   if (screenmgr) {
-    screenmgr->ScreenForRect(mHMD->WindowsPos.x, mHMD->WindowsPos.y,
-                             mHMD->Resolution.w, mHMD->Resolution.h,
-                             getter_AddRefs(mScreen));
+#if 1
+    if (getenv("FAKE_OCULUS_SCREEN")) {
+      mScreen = VRHMDManager::MakeFakeScreen(3840, 0, 1920, 1080);
+    } else
+#endif
+    {
+      screenmgr->ScreenForRect(mHMD->WindowsPos.x, mHMD->WindowsPos.y,
+                               mHMD->Resolution.w, mHMD->Resolution.h,
+                               getter_AddRefs(mScreen));
+    }
   }
 }
 
