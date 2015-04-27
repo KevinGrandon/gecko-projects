@@ -163,7 +163,7 @@ ContainerRenderVR(ContainerT* aContainer,
   surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
 
   // use NONE here, because we draw black to clear below
-  surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_NONE);
+  surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_CLEAR);
   if (!surface) {
     return;
   }
@@ -248,6 +248,7 @@ ContainerRenderVR(ContainerT* aContainer,
   // then bind the original target and draw with distortion
   compositor->SetRenderTarget(previousTarget);
 
+  gfx::Rect normRect(0, 0, visibleRect.width, visibleRect.height);
   gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
 
@@ -258,12 +259,18 @@ ContainerRenderVR(ContainerT* aContainer,
   // the entire rect)
   EffectChain solidEffect(aContainer);
   solidEffect.mPrimaryEffect = new EffectSolidColor(Color(0.0, 0.0, 0.0, 1.0));
-  aManager->GetCompositor()->DrawQuad(rect, clipRect, solidEffect, opacity,
-                                      aContainer->GetEffectiveTransform());
+  aManager->GetCompositor()->DrawQuad(normRect, normRect, solidEffect, 1.0, gfx::Matrix4x4());
 
   // draw the temporary surface with VR distortion to the original destination
   EffectChain vrEffect(aContainer);
-  vrEffect.mPrimaryEffect = new EffectVRDistortion(aHMD, surface);
+#ifdef DEBUG
+  if (PR_GetEnv("MOZ_GFX_VR_NO_DISTORTION")) {
+    vrEffect.mPrimaryEffect = new EffectRenderTarget(surface);
+  } else
+#endif
+  {
+    vrEffect.mPrimaryEffect = new EffectVRDistortion(aHMD, surface);
+  }
 
   // XXX we shouldn't use visibleRect here -- the VR distortion needs to know the
   // full rect, not just the visible one.  Luckily, right now, VR distortion is only

@@ -1022,7 +1022,8 @@ CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
                             Rect* aRenderBoundsOut)
 {
   if (gfxUtils::sDumpDebug) {
-    printf_stderr(">>>> BeginFrame %d %d %d %d\n", aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
+    nsIntRect ir = aInvalidRegion.GetBounds();
+    printf_stderr(">>>> BeginFrame %d %d %d %d [inval bounds: %d %d %d %d]\n", aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height, ir.x, ir.y, ir.width, ir.height);
   }
   
   // Don't composite if we are minimised. Other than for the sake of efficency,
