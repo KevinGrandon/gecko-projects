@@ -677,6 +677,10 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect)
     currentClip = aCurrentScissorRect;
   }
 
+  if (container->GetContentFlags() & CONTENT_PRESERVE_3D) {
+    return currentClip;
+  }
+
   if (!GetEffectiveClipRect()) {
     return currentClip;
   }
