@@ -200,7 +200,11 @@ ContainerRenderVR(ContainerT* aContainer,
     }
 
     int lastLayerWasNativeVR = -1;
-    const gfx::Matrix4x4& proj = aHMD->GetEyeProjectionMatrix(eye);
+    // This is a right-handed projection matrix, to match CSS.  But this
+    // projection matrix has Y-up.
+    // CSS has Y-down.
+    gfx::Matrix4x4 proj = aHMD->GetEyeProjectionMatrix(eye);
+    proj.PostScale(1.0f, -1.0f, 1.0f);
 
     for (uint32_t i = 0; i < children.Length(); i++) {
       LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
