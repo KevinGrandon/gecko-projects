@@ -223,14 +223,14 @@ ContainerRenderVR(ContainerT* aContainer,
           compositor->SetRenderTarget(eyeSurface[eye]);
 
           aContainer->ReplaceEffectiveTransform(gfx::Matrix4x4());
-          printf_stderr("%p Switching to native VR\n", aContainer);
+          if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to pre-rendered VR\n", aContainer);
         } else {
           eyeSurface[eye]->SetProjection(proj, true, aHMD->GetZNear(), aHMD->GetZFar());
           compositor->SetRenderTarget(eyeSurface[eye]);
 
           gfx::Point3D eyeTranslation = aHMD->GetEyeTranslation(eye);
           aContainer->ReplaceEffectiveTransform(gfx::Matrix4x4::Translation(eyeTranslation));
-          printf_stderr("%p Switching to non-native VR\n", aContainer);
+          if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to Gecko-rendered VR\n", aContainer);
         }
         lastLayerWasNativeVR = thisLayerNativeVR;
       }
