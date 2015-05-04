@@ -7418,6 +7418,14 @@ if test -n "$MOZ_REFLOW_PERF"; then
 fi
 
 dnl ========================================================
+dnl = Enable WebVR APIs
+dnl ========================================================
+if test -n "$MOZ_WEBVR"; then
+    AC_DEFINE(MOZ_WEBVR)
+fi
+AC_SUBST(MOZ_WEBVR)
+
+dnl ========================================================
 dnl = Offer a way to disable the startup cache
 dnl ========================================================
 
