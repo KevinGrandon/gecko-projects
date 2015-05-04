@@ -214,6 +214,7 @@ ContainerRenderVR(ContainerT* aContainer,
           eyeSurface[eye]->ClearProjection();
           compositor->SetRenderTarget(eyeSurface[eye]);
 
+          // XXX do we want to replace with gfx::Matrix4x4() or with origTransform?
           aContainer->ReplaceEffectiveTransform(gfx::Matrix4x4());
           if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to pre-rendered VR\n", aContainer);
         } else {
@@ -221,7 +222,10 @@ ContainerRenderVR(ContainerT* aContainer,
           compositor->SetRenderTarget(eyeSurface[eye]);
 
           gfx::Point3D eyeTranslation = aHMD->GetEyeTranslation(eye);
-          aContainer->ReplaceEffectiveTransform(gfx::Matrix4x4::Translation(eyeTranslation));
+          gfx::Matrix4x4 newTransform = gfx::Matrix4x4::Translation(gfx::Point3D(-eyeTranslation.x, -eyeTranslation.y, -eyeTranslation.z));
+          const float pixelsToMetres = 0.0254f / 96.0f;  // 96 dpi, 2.54 cm per inch, cm -> meters
+          newTransform.PreScale(pixelsToMetres, pixelsToMetres, pixelsToMetres);
+          aContainer->ReplaceEffectiveTransform(newTransform);
           if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to Gecko-rendered VR\n", aContainer);
         }
         lastLayerWasNativeVR = thisLayerNativeVR;
