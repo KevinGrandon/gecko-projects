@@ -150,29 +150,28 @@ ContainerRenderVR(ContainerT* aContainer,
 
   float opacity = aContainer->GetEffectiveOpacity();
 
-  gfx::IntRect surfaceRect = gfx::IntRect(visibleRect.x, visibleRect.y,
-                                          visibleRect.width, visibleRect.height);
-  // we're about to create a framebuffer backed by textures to use as an intermediate
-  // surface. What to do if its size (as given by framebufferRect) would exceed the
-  // maximum texture size supported by the GL? The present code chooses the compromise
-  // of just clamping the framebuffer's size to the max supported size.
-  // This gives us a lower resolution rendering of the intermediate surface (children layers).
-  // See bug 827170 for a discussion.
-  int32_t maxTextureSize = compositor->GetMaxTextureSize();
-  surfaceRect.width = std::min(maxTextureSize, surfaceRect.width);
-  surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
+  // The size of each individual eye surface
+  gfx::IntSize eyeResolution = aHMD->SuggestedEyeResolution();
+  gfx::IntRect eyeRect = gfx::IntRect(0, 0, eyeResolution.width, eyeResolution.height);
 
-  gfx::Size halfSurfaceSize(surfaceRect.width / 2.0f, surfaceRect.height);
+  // The intermediate surface size; we're going to assume that we're not going to run
+  // into max texture size limits
+  gfx::IntRect surfaceRect = gfx::IntRect(0, 0, eyeResolution.width * 2, eyeResolution.height);
+
+  int32_t maxTextureSize = compositor->GetMaxTextureSize();
+  if (surfaceRect.width > maxTextureSize ||
+      surfaceRect.height > maxTextureSize)
+  {
+    NS_WARNING("VR intermediate surface exceeded max texture size");
+    surfaceRect.width = std::min(maxTextureSize, surfaceRect.width);
+    surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
+  }
   
   // use NONE here, because we draw black to clear below
   surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_CLEAR);
   if (!surface) {
     return;
   }
-
-  // The size of each individual eye surface
-  gfx::IntSize eyeResolution = aHMD->SuggestedEyeResolution();
-  gfx::IntRect eyeRect = gfx::IntRect(0, 0, eyeResolution.width, eyeResolution.height);
 
   gfx::IntRect rtBounds = previousTarget->GetRect();
   DUMP("eyeResolution: %d %d targetRT: %d %d %d %d\n", eyeResolution.width, eyeResolution.height,
@@ -193,16 +192,11 @@ ContainerRenderVR(ContainerT* aContainer,
     }
 
     // Compute pre-rendered VR eye transform:
-    // - Scale the incoming pre-rendered surface's half-size (per eye) to fit the eye resolution
-    //   eyeResolution is what the VR HMD device's recommended render rect will be, so if that's being
-    //   honored, then this will be 1.0f
-    // - For the right eye, take the right half of the surface.
+    // - translate the incoming layer to the right position for the appropriate eye
     gfx::Matrix4x4 preRenderedEyeTransform =
-      gfx::Matrix4x4::Scaling(float(eyeResolution.width) / halfSurfaceSize.width,
-                              float(eyeResolution.height) / halfSurfaceSize.height,
-                              1.0f);
-    preRenderedEyeTransform.PostTranslate(-float(eye * eyeResolution.width), 0.0f, 0.0f);
-
+      gfx::Matrix4x4::Translation(-float(eye * eyeResolution.width), 0.0f, 0.0f);
+    gfx::Matrix4x4 preRenderedEyeTransformCurrent;
+    
     // Compute the CSS-rendered VR eye transform:
     // - Translate by negative of the eye translation (or rather, the inverse of it)
     // - The convert units so that pixels become 96 dpi "dots", and metres make sense;
@@ -245,6 +239,7 @@ ContainerRenderVR(ContainerT* aContainer,
           compositor->SetRenderTarget(eyeSurface[eye]);
 
           aContainer->ReplaceEffectiveTransform(preRenderedEyeTransform);
+          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
           DUMP("%p Switching to pre-rendered VR\n", aContainer);
         } else {
           eyeSurface[eye]->SetProjection(cssEyeProjection, true, aHMD->GetZNear(), aHMD->GetZFar());
@@ -256,6 +251,22 @@ ContainerRenderVR(ContainerT* aContainer,
         lastLayerWasNativeVR = thisLayerNativeVR;
       }
 
+      if (thisLayerNativeVR) {
+        nsIntRect layerBounds = layer->GetLayerBounds();
+        if (layerBounds.width != eyeResolution.width * 2 ||
+            layerBounds.height != eyeResolution.height)
+        {
+          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
+          preRenderedEyeTransformCurrent.PreScale((eyeResolution.width * 2.0f) / layerBounds.width,
+                                                  eyeResolution.height / layerBounds.height,
+                                                  1.0f);
+          aContainer->ReplaceEffectiveTransform(preRenderedEyeTransformCurrent);
+        } else if (preRenderedEyeTransformCurrent != preRenderedEyeTransform) {
+          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
+          aContainer->ReplaceEffectiveTransform(preRenderedEyeTransformCurrent);
+        }
+      }
+      
       // XXX these are both clip rects, which end up as scissor rects in the compositor.  So we just
       // pass the full target surface rect here.
       layerToRender->Prepare(RenderTargetIntRect(eyeRect.x, eyeRect.y, eyeRect.width, eyeRect.height));
@@ -279,10 +290,7 @@ ContainerRenderVR(ContainerT* aContainer,
 
     // when we render, we need to take the eyeResolution quad and scale it to the appropriate size, and put it
     // in the right place
-    gfx::Matrix4x4 drawTransform = gfx::Matrix4x4::Scaling(halfSurfaceSize.width / eyeResolution.width,
-                                                           halfSurfaceSize.height / eyeResolution.height,
-                                                           1.0f);
-    drawTransform.PostTranslate(eye * halfSurfaceSize.width, 0.0f, 0.0f);
+    gfx::Matrix4x4 drawTransform = gfx::Matrix4x4::Translation(eye * eyeResolution.width, 0.0f, 0.0f);
     compositor->DrawQuad(destRect, clipRect, rtEffect, 1.0f, drawTransform);
   }
 
