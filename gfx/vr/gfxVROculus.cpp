@@ -266,7 +266,11 @@ HMDInfoOculus::HMDInfoOculus(ovrHmd aHMD)
   if (screenmgr) {
 #if 1
     if (getenv("FAKE_OCULUS_SCREEN")) {
-      mScreen = VRHMDManager::MakeFakeScreen(3840, 0, 1920, 1080);
+      const char *env = getenv("FAKE_OCULUS_SCREEN");
+      nsresult err;
+      int32_t xcoord = nsCString(env).ToInteger(&err);
+      if (err != NS_OK) xcoord = 0;
+      mScreen = VRHMDManager::MakeFakeScreen(xcoord, 0, 1920, 1080);
     } else
 #endif
     {
