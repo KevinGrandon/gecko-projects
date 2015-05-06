@@ -264,9 +264,16 @@ HMDInfoOculus::HMDInfoOculus(ovrHmd aHMD)
 
   nsCOMPtr<nsIScreenManager> screenmgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
   if (screenmgr) {
-    screenmgr->ScreenForRect(mHMD->WindowsPos.x, mHMD->WindowsPos.y,
-                             mHMD->Resolution.w, mHMD->Resolution.h,
-                             getter_AddRefs(mScreen));
+#if 1
+    if (getenv("FAKE_OCULUS_SCREEN")) {
+      mScreen = VRHMDManager::MakeFakeScreen(3840, 0, 1920, 1080);
+    } else
+#endif
+    {
+      screenmgr->ScreenForRect(mHMD->WindowsPos.x, mHMD->WindowsPos.y,
+                               mHMD->Resolution.w, mHMD->Resolution.h,
+                               getter_AddRefs(mScreen));
+    }
   }
 }
 
@@ -287,6 +294,9 @@ HMDInfoOculus::SetFOV(const VRFieldOfView& aFOVLeft, const VRFieldOfView& aFOVRi
   ovrSizei texSize[2];
 
   uint32_t caps = ovrDistortionCap_Chromatic | ovrDistortionCap_Vignette; // XXX TODO add TimeWarp
+
+  mZNear = zNear;
+  mZFar = zFar;
 
   // get eye parameters and create the mesh
   for (uint32_t eye = 0; eye < NumEyes; eye++) {

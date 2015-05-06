@@ -136,8 +136,12 @@ ContainerRenderVR(ContainerT* aContainer,
                   const gfx::IntRect& aClipRect,
                   gfx::VRHMDInfo* aHMD)
 {
-  RefPtr<CompositingRenderTarget> surface;
+  RefPtr<CompositingRenderTarget> surface, eyeSurface[2];
 
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr(">>> ContainerRenderVR [%p]\n", aContainer);
+  }
+  
   Compositor* compositor = aManager->GetCompositor();
 
   RefPtr<CompositingRenderTarget> previousTarget = compositor->GetCurrentRenderTarget();
@@ -159,51 +163,100 @@ ContainerRenderVR(ContainerT* aContainer,
   surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
 
   // use NONE here, because we draw black to clear below
-  surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_NONE);
+  surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_CLEAR);
   if (!surface) {
     return;
   }
 
-  compositor->SetRenderTarget(surface);
+  // The size of each individual eye surface
+  gfx::IntSize eyeResolution = aHMD->SuggestedEyeResolution();
+  gfx::IntRect eyeRect = gfx::IntRect(0, 0, eyeResolution.width, eyeResolution.height);
 
   nsAutoTArray<Layer*, 12> children;
   aContainer->SortChildrenBy3DZOrder(children);
 
-  /**
-   * Render this container's contents.
-   */
-  gfx::IntRect surfaceClipRect(0, 0, surfaceRect.width, surfaceRect.height);
-  RenderTargetIntRect rtClipRect(0, 0, surfaceRect.width, surfaceRect.height);
-  for (uint32_t i = 0; i < children.Length(); i++) {
-    LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
-    Layer* layer = layerToRender->GetLayer();
+  gfx::Matrix4x4 origTransform = aContainer->GetEffectiveTransform();
 
-    if (layer->GetEffectiveVisibleRegion().IsEmpty() &&
-        !layer->AsContainerLayer()) {
-      continue;
+  for (uint32_t eye = 0; eye < 2; eye++) {
+    if (gfxUtils::sDumpDebug) {
+      printf_stderr(" -- ContainerRenderVR [%p] EYE %d\n", aContainer, eye);
+    }
+    eyeSurface[eye] = compositor->CreateRenderTarget(eyeRect, INIT_MODE_CLEAR);
+    if (!eyeSurface[eye]) {
+      compositor->SetRenderTarget(previousTarget);
+      return;
     }
 
-    RenderTargetIntRect clipRect = layer->CalculateScissorRect(rtClipRect);
-    if (clipRect.IsEmpty()) {
-      continue;
-    }
+    int lastLayerWasNativeVR = -1;
+    // This is a right-handed projection matrix, to match CSS.  But this
+    // projection matrix has Y-up.
+    // CSS has Y-down.
+    gfx::Matrix4x4 proj = aHMD->GetEyeProjectionMatrix(eye);
+    proj.PostScale(1.0f, -1.0f, 1.0f);
 
-    layerToRender->Prepare(rtClipRect);
-    layerToRender->RenderLayer(surfaceClipRect);
+    for (uint32_t i = 0; i < children.Length(); i++) {
+      LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
+      Layer* layer = layerToRender->GetLayer();
+      uint32_t contentFlags = layer->GetContentFlags();
+
+      if (layer->GetEffectiveVisibleRegion().IsEmpty() &&
+          !layer->AsContainerLayer()) {
+        continue;
+      }
+
+      // Set the render target if needed, with appropriate projection
+      int thisLayerNativeVR = (contentFlags & Layer::CONTENT_PRESERVE_3D) ? 0 : 1;
+      if (lastLayerWasNativeVR != thisLayerNativeVR) {
+        if (thisLayerNativeVR) {
+          // XXX we still need depth test here, but we have no way of preserving
+          // depth anyway in native VR layers until we have a way to save them
+          // from WebGL (and maybe depth video?)
+          eyeSurface[eye]->ClearProjection();
+          compositor->SetRenderTarget(eyeSurface[eye]);
+
+          // XXX do we want to replace with gfx::Matrix4x4() or with origTransform?
+          aContainer->ReplaceEffectiveTransform(gfx::Matrix4x4());
+          if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to pre-rendered VR\n", aContainer);
+        } else {
+          eyeSurface[eye]->SetProjection(proj, true, aHMD->GetZNear(), aHMD->GetZFar());
+          compositor->SetRenderTarget(eyeSurface[eye]);
+
+          gfx::Point3D eyeTranslation = aHMD->GetEyeTranslation(eye);
+          gfx::Matrix4x4 newTransform = gfx::Matrix4x4::Translation(gfx::Point3D(-eyeTranslation.x, -eyeTranslation.y, -eyeTranslation.z));
+          const float pixelsToMetres = 0.0254f / 96.0f;  // 96 dpi, 2.54 cm per inch, cm -> meters
+          newTransform.PreScale(pixelsToMetres, pixelsToMetres, pixelsToMetres);
+          aContainer->ReplaceEffectiveTransform(newTransform);
+          if (gfxUtils::sDumpDebug) printf_stderr("%p Switching to Gecko-rendered VR\n", aContainer);
+        }
+        lastLayerWasNativeVR = thisLayerNativeVR;
+      }
+
+      // XXX what should these rects actually be?
+      layerToRender->Prepare(RenderTargetIntRect(0, 0, eyeRect.width, eyeRect.height));
+      layerToRender->RenderLayer(nsIntRect(surfaceRect.x, surfaceRect.y, surfaceRect.width, surfaceRect.height));
+    }
   }
 
-  // Unbind the current surface and rebind the previous one.
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    RefPtr<gfx::DataSourceSurface> surf = surface->Dump(aManager->GetCompositor());
-    if (surf) {
-      WriteSnapshotToDumpFile(aContainer, surf);
-    }
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr(" -- ContainerRenderVR [%p] after child layers\n", aContainer);
   }
-#endif
+  
+  aContainer->ReplaceEffectiveTransform(origTransform);
 
+  // bind and draw each eye to the intermediate surface
+  compositor->SetRenderTarget(surface);
+  for (uint32_t eye = 0; eye < 2; eye++) {
+    gfx::Rect destRect(eye * visibleRect.width / 2, 0,
+                       visibleRect.width / 2, visibleRect.height);
+    EffectChain rtEffect(aContainer);
+    rtEffect.mPrimaryEffect = new EffectRenderTarget(eyeSurface[eye]);
+    compositor->DrawQuad(destRect, destRect, rtEffect, 1.0f, gfx::Matrix4x4());
+  }
+
+  // then bind the original target and draw with distortion
   compositor->SetRenderTarget(previousTarget);
 
+  gfx::Rect normRect(0, 0, visibleRect.width, visibleRect.height);
   gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
 
@@ -214,18 +267,28 @@ ContainerRenderVR(ContainerT* aContainer,
   // the entire rect)
   EffectChain solidEffect(aContainer);
   solidEffect.mPrimaryEffect = new EffectSolidColor(Color(0.0, 0.0, 0.0, 1.0));
-  aManager->GetCompositor()->DrawQuad(rect, clipRect, solidEffect, opacity,
-                                      aContainer->GetEffectiveTransform());
+  aManager->GetCompositor()->DrawQuad(normRect, normRect, solidEffect, 1.0, gfx::Matrix4x4());
 
   // draw the temporary surface with VR distortion to the original destination
   EffectChain vrEffect(aContainer);
-  vrEffect.mPrimaryEffect = new EffectVRDistortion(aHMD, surface);
+#ifdef DEBUG
+  if (PR_GetEnv("MOZ_GFX_VR_NO_DISTORTION")) {
+    vrEffect.mPrimaryEffect = new EffectRenderTarget(surface);
+  } else
+#endif
+  {
+    vrEffect.mPrimaryEffect = new EffectVRDistortion(aHMD, surface);
+  }
 
   // XXX we shouldn't use visibleRect here -- the VR distortion needs to know the
   // full rect, not just the visible one.  Luckily, right now, VR distortion is only
   // rendered when the element is fullscreen, so the visibleRect will be right anyway.
   aManager->GetCompositor()->DrawQuad(rect, clipRect, vrEffect, opacity,
                                       aContainer->GetEffectiveTransform());
+
+  if (gfxUtils::sDumpDebug) {
+    printf_stderr("<<< ContainerRenderVR [%p]\n", aContainer);
+  }
 }
 
 /* all of the prepared data that we need in RenderLayer() */
@@ -488,6 +551,24 @@ ContainerRender(ContainerT* aContainer,
                  const gfx::IntRect& aClipRect)
 {
   MOZ_ASSERT(aContainer->mPrepared);
+
+  if (gfxUtils::sDumpDebug) {
+    nsIntRegion visibleRegion = aContainer->GetEffectiveVisibleRegion();
+    nsIntRect bounds = visibleRegion.GetBounds();
+    const gfx::Matrix4x4& xform = aContainer->GetEffectiveTransform();
+    printf_stderr("ContainerLayer[%p]: visible: [%d %d %d %d] clip: [%d %d %d %d] %s\n",
+                  aContainer, bounds.X(), bounds.Y(), bounds.Width(), bounds.Height(),
+                  aClipRect.X(), aClipRect.Y(), aClipRect.Width(), aClipRect.Height(),
+                  aContainer->GetVRHMDInfo() ? "HMD" : "");
+    if (xform.IsTranslation()) {
+      printf_stderr("                  xform: [translate %.2f %.2f %.2f]\n", xform._41, xform._42, xform._43);
+    } else {
+      printf_stderr("   xform: [%3.2f %3.2f %3.2f %3.2f]\n", xform._11, xform._12, xform._13, xform._14);
+      printf_stderr("          [%3.2f %3.2f %3.2f %3.2f]\n", xform._21, xform._22, xform._23, xform._24);
+      printf_stderr("          [%3.2f %3.2f %3.2f %3.2f]\n", xform._31, xform._32, xform._33, xform._34);
+      printf_stderr("          [%3.2f %3.2f %3.2f %3.2f]\n", xform._41, xform._42, xform._43, xform._44);
+    }
+  }
 
   gfx::VRHMDInfo *hmdInfo = aContainer->GetVRHMDInfo();
   if (hmdInfo && hmdInfo->GetConfiguration().IsValid()) {

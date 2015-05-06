@@ -1135,3 +1135,6 @@ pref("gfx.touch.resample", true);
 #ifdef MOZ_GRAPHENE
 #include ../graphene/graphene.js
 #endif
+
+// Enable Cardboard VR on mobile, assuming VR at all is enabled
+pref("dom.vr.cardboard.enabled", true);

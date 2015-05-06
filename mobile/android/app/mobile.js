@@ -877,3 +877,11 @@ pref("selectioncaret.detects.longtap", false);
 #ifdef NIGHTLY_BUILD
 pref("dom.serviceWorkers.enabled", true);
 #endif
+
+// Use software vsync to schedule composites
+pref("gfx.vsync.hw-vsync.enabled", true);
+pref("gfx.vsync.compositor", true);
+
+// Enable Cardboard VR on mobile, assuming VR at all is enabled
+pref("dom.vr.cardboard.enabled", true);
+
