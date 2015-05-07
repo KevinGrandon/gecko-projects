@@ -42,6 +42,9 @@
 // #define CULLING_LOG(...) printf_stderr("CULLING: " __VA_ARGS__)
 
 #define DUMP(...) do { if (gfxUtils::sDumpDebug) { printf_stderr(__VA_ARGS__); } } while(0)
+#define XYWH(k)  (k).x, (k).y, (k).width, (k).height
+#define XY(k)    (k).x, (k).y
+#define WH(k)    (k).width, (k).height
 
 namespace mozilla {
 namespace layers {
@@ -174,8 +177,8 @@ ContainerRenderVR(ContainerT* aContainer,
   }
 
   gfx::IntRect rtBounds = previousTarget->GetRect();
-  DUMP("eyeResolution: %d %d targetRT: %d %d %d %d\n", eyeResolution.width, eyeResolution.height,
-       rtBounds.x, rtBounds.y, rtBounds.width, rtBounds.height);
+  DUMP("eyeResolution: %d %d targetRT: %d %d %d %d\n",
+       WH(eyeResolution), XYWH(rtBounds));
   
   nsAutoTArray<Layer*, 12> children;
   aContainer->SortChildrenBy3DZOrder(children);
@@ -195,7 +198,6 @@ ContainerRenderVR(ContainerT* aContainer,
     // - translate the incoming layer to the right position for the appropriate eye
     gfx::Matrix4x4 preRenderedEyeTransform =
       gfx::Matrix4x4::Translation(-float(eye * eyeResolution.width), 0.0f, 0.0f);
-    gfx::Matrix4x4 preRenderedEyeTransformCurrent;
     
     // Compute the CSS-rendered VR eye transform:
     // - Translate by negative of the eye translation (or rather, the inverse of it)
@@ -239,7 +241,6 @@ ContainerRenderVR(ContainerT* aContainer,
           compositor->SetRenderTarget(eyeSurface[eye]);
 
           aContainer->ReplaceEffectiveTransform(preRenderedEyeTransform);
-          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
           DUMP("%p Switching to pre-rendered VR\n", aContainer);
         } else {
           eyeSurface[eye]->SetProjection(cssEyeProjection, true, aHMD->GetZNear(), aHMD->GetZFar());
@@ -251,19 +252,27 @@ ContainerRenderVR(ContainerT* aContainer,
         lastLayerWasNativeVR = thisLayerNativeVR;
       }
 
+      const gfx::Matrix4x4 childTransform = layer->GetEffectiveTransform();
+      bool restoreTransform = false;
+      
+      // If this native-VR child layer does not have sizes that match
+      // the eye resolution (that is, returned by the recommended
+      // render rect from the HMD device), then we need to scale it
+      // up/down.
       if (thisLayerNativeVR) {
         nsIntRect layerBounds = layer->GetLayerBounds();
-        if (layerBounds.width != eyeResolution.width * 2 ||
-            layerBounds.height != eyeResolution.height)
+        DUMP("  layer %p bounds [%d %d %d %d] surfaceRect [%d %d %d %d]\n",
+             XYWH(layerBounds), XYWH(surfaceRect));
+        if (layerBounds.width != surfaceRect.width ||
+            layerBounds.height != surfaceRect.height)
         {
-          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
-          preRenderedEyeTransformCurrent.PreScale((eyeResolution.width * 2.0f) / layerBounds.width,
-                                                  eyeResolution.height / layerBounds.height,
-                                                  1.0f);
-          aContainer->ReplaceEffectiveTransform(preRenderedEyeTransformCurrent);
-        } else if (preRenderedEyeTransformCurrent != preRenderedEyeTransform) {
-          preRenderedEyeTransformCurrent = preRenderedEyeTransform;
-          aContainer->ReplaceEffectiveTransform(preRenderedEyeTransformCurrent);
+          gfx::Matrix4x4 scaledChildTransform(childTransform);
+          scaledChildTransform.PreScale(surfaceRect.width / float(layerBounds.width),
+                                        surfaceRect.height / float(layerBounds.height),
+                                        1.0f);
+
+          layer->ReplaceEffectiveTransform(scaledChildTransform);
+          restoreTransform = true;
         }
       }
       
@@ -271,6 +280,10 @@ ContainerRenderVR(ContainerT* aContainer,
       // pass the full target surface rect here.
       layerToRender->Prepare(RenderTargetIntRect(eyeRect.x, eyeRect.y, eyeRect.width, eyeRect.height));
       layerToRender->RenderLayer(eyeRect);
+
+      if (restoreTransform) {
+        layer->ReplaceEffectiveTransform(childTransform);
+      }
     }
   }
 
