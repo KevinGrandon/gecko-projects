@@ -444,7 +444,7 @@ CompositorOGL::PrepareViewport(CompositingRenderTargetOGL* aRenderTarget)
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, size.width, size.height);
 
-  mViewportSize = aSize;
+  mViewportSize = size;
 
   if (!aRenderTarget->HasComplexProjection()) {
     // We flip the view matrix around so that everything is right-side up; we're
