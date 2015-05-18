@@ -904,3 +904,11 @@ pref("touchcaret.extendedvisibility", true);
 // The TouchCaret and the SelectionCarets will indicate when the
 // TextSelection actionbar is to be openned or closed.
 pref("caret.manages-android-actionbar", true);
+
+// Enable Service workers for Android on non-release builds
+#ifdef NIGHTLY_BUILD
+pref("dom.serviceWorkers.enabled", true);
+#endif
+
+// Enable Cardboard VR on mobile, assuming VR at all is enabled
+pref("dom.vr.cardboard.enabled", true);

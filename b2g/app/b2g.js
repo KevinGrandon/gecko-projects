@@ -1135,7 +1135,11 @@ pref("dom.activities.developer_mode_only", "import-app");
 // mulet apparently loads firefox.js as well as b2g.js, so we have to explicitly
 // disable serviceworkers here to get them disabled in mulet.
 pref("dom.serviceWorkers.enabled", false);
+
 // Because we can't have nice things.
 #ifdef MOZ_GRAPHENE
 #include ../graphene/graphene.js
 #endif
+
+// Enable Cardboard VR on mobile, assuming VR at all is enabled
+pref("dom.vr.cardboard.enabled", true);

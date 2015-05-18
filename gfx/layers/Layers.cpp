@@ -677,6 +677,10 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect)
     currentClip = aCurrentScissorRect;
   }
 
+  if (container->GetContentFlags() & CONTENT_PRESERVE_3D) {
+    return currentClip;
+  }
+
   if (!GetEffectiveClipRect()) {
     return currentClip;
   }
@@ -1148,17 +1152,38 @@ ContainerLayer::SortChildrenBy3DZOrder(nsTArray<Layer*>& aArray)
 void
 ContainerLayer::DefaultComputeEffectiveTransforms(const Matrix4x4& aTransformToSurface)
 {
-  Matrix residual;
+  Matrix4x4 residual;
   Matrix4x4 idealTransform = GetLocalTransform() * aTransformToSurface;
-  idealTransform.ProjectTo2D();
-  mEffectiveTransform = SnapTransformTranslation(idealTransform, &residual);
+
+  // If this container has an unbroken chain of preserve-3d containers
+  // all the way up to a VR container, then we're going to make sure that
+  // its transforms are kept as pure 3D as possible.
+  bool hasUnbroken3DChainToVRContainer = false;
+  for (ContainerLayer *p = this; p; p = p->mParent) {
+    if (p->mHMDInfo) {
+      hasUnbroken3DChainToVRContainer = true;
+      break;
+    }
+    if (!(p->GetContentFlags() & CONTENT_PRESERVE_3D))
+      break;
+  }
+
+  if (hasUnbroken3DChainToVRContainer) {
+    mEffectiveTransform = idealTransform;
+    // Residual stays as identity if we're using an intermediate surface.
+  } else {
+    idealTransform.ProjectTo2D();
+    Matrix residual2d;
+    mEffectiveTransform = SnapTransformTranslation(idealTransform, &residual2d);
+    residual = Matrix4x4::From2D(residual2d);
+  }
 
   bool useIntermediateSurface;
   if (GetMaskLayer() ||
       GetForceIsolatedGroup()) {
     useIntermediateSurface = true;
 #ifdef MOZ_DUMP_PAINTING
-  } else if (gfxUtils::sDumpPaintingIntermediate) {
+  } else if (!hasUnbroken3DChainToVRContainer && gfxUtils::sDumpPaintingIntermediate) {
     useIntermediateSurface = true;
 #endif
   } else {
@@ -1166,15 +1191,20 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const Matrix4x4& aTransformToS
     CompositionOp blendMode = GetEffectiveMixBlendMode();
     if ((opacity != 1.0f || blendMode != CompositionOp::OP_OVER) && HasMultipleChildren()) {
       useIntermediateSurface = true;
+    } else if (hasUnbroken3DChainToVRContainer) {
+      // XXX do we need to do something with the clip stuff below
+      useIntermediateSurface = false;
     } else {
       useIntermediateSurface = false;
       gfx::Matrix contTransform;
       if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-        !contTransform.PreservesAxisAlignedRectangles()) {
+          !contTransform.PreservesAxisAlignedRectangles()
 #else
-        gfx::ThebesMatrix(contTransform).HasNonIntegerTranslation()) {
+          gfx::ThebesMatrix(contTransform).HasNonIntegerTranslation()
 #endif
+          )
+      {
         for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
           const Maybe<ParentLayerIntRect>& clipRect = child->GetEffectiveClipRect();
           /* We can't (easily) forward our transform to children with a non-empty clip
@@ -1192,9 +1222,15 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const Matrix4x4& aTransformToS
     }
   }
 
+#ifdef DEBUG
+  if (hasUnbroken3DChainToVRContainer && useIntermediateSurface) {
+    printf_stderr("Container layer %p is part of VR 3D scenegraph, but wants an intermediate surface! mask: %d force: %d opacity: %f blend: %d n>1child: %d\n", this, GetMaskLayer() ? 1 : 0, GetForceIsolatedGroup() ? 1 : 0, GetEffectiveOpacity(), GetEffectiveMixBlendMode(), HasMultipleChildren());
+  }
+#endif
+
   mUseIntermediateSurface = useIntermediateSurface && !GetEffectiveVisibleRegion().IsEmpty();
   if (useIntermediateSurface) {
-    ComputeEffectiveTransformsForChildren(Matrix4x4::From2D(residual));
+    ComputeEffectiveTransformsForChildren(residual);
   } else {
     ComputeEffectiveTransformsForChildren(idealTransform);
   }
