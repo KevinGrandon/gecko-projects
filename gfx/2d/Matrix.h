@@ -492,6 +492,11 @@ public:
 
   Rect ProjectRectBounds(const Rect& aRect, const Rect &aClip) const;
 
+  Rect TransformAndClipBounds(const Rect& aRect, const Rect& aClip) const;
+
+  bool TransformAndClipLine(Point& aPoint1, Point& aPoint2,
+                            const Rect& aClip) const;
+
   /**
    * TransformAndClipRect projects a rectangle and clips against view frustum
    * clipping planes in homogenous space so that its projected vertices are

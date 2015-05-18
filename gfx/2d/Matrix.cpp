@@ -102,6 +102,16 @@ Matrix::NudgeToIntegers()
 Rect
 Matrix4x4::TransformBounds(const Rect& aRect) const
 {
+  Point4D verts[4];
+  verts[0] = *this * Point4D(aRect.x, aRect.y, 0.0, 1.0);
+  verts[1] = *this * Point4D(aRect.XMost(), aRect.y, 0.0, 1.0);
+  verts[2] = *this * Point4D(aRect.XMost(), aRect.YMost(), 0.0, 1.0);
+  verts[3] = *this * Point4D(aRect.x, aRect.YMost(), 0.0, 1.0);
+
+  if(verts[0].w < 0.0 || verts[1].w < 0.0 || verts[2].w < 0.0 || verts[3].w < 0.0) {
+     return TransformAndClipBounds(aRect, Rect(-10000000, -10000000, 20000000, 20000000));
+  }
+
   Point quad[4];
   Float min_x, max_x;
   Float min_y, max_y;
@@ -225,6 +235,89 @@ Rect Matrix4x4::ProjectRectBounds(const Rect& aRect, const Rect &aClip) const
   }
 
   return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
+}
+
+Rect
+Matrix4x4::TransformAndClipBounds(const Rect& aRect, const Rect& aClip) const
+{
+  Point verts[kTransformAndClipRectMaxVerts];
+  size_t vertCount = TransformAndClipRect(aRect, aClip, verts);
+
+  float min_x = std::numeric_limits<float>::max();
+  float min_y = std::numeric_limits<float>::max();
+  float max_x = -std::numeric_limits<float>::max();
+  float max_y = -std::numeric_limits<float>::max();
+  for (size_t i=0; i < vertCount; i++) {
+    min_x = std::min(min_x, verts[i].x);
+    max_x = std::max(max_x, verts[i].x);
+    min_y = std::min(min_y, verts[i].y);
+    max_y = std::max(max_y, verts[i].y);
+  }
+
+  if (max_x < min_x || max_y < min_y) {
+    return Rect(0, 0, 0, 0);
+  }
+
+  return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
+
+}
+
+ bool
+Matrix4x4::TransformAndClipLine(Point& aPoint1, Point& aPoint2, const Rect& aClip) const
+{
+  // View frustum clipping planes are described as normals originating from
+  // the 0,0,0,0 origin.
+  Point4D planeNormals[4];
+  planeNormals[0] = Point4D(1.0, 0.0, 0.0, -aClip.x);
+  planeNormals[1] = Point4D(-1.0, 0.0, 0.0, aClip.XMost());
+  planeNormals[2] = Point4D(0.0, 1.0, 0.0, -aClip.y);
+  planeNormals[3] = Point4D(0.0, -1.0, 0.0, aClip.YMost());
+
+  Point4D vert1 = *this * Point4D(aPoint1.x, aPoint1.y, 0.0, 1.0);
+  Point4D vert2 = *this * Point4D(aPoint2.x, aPoint2.y, 0.0, 1.0);
+
+  // Iterate through each clipping plane and clip the line.
+  for (int plane=0; plane < 4; plane++) {
+    planeNormals[plane].Normalize();
+    float dot1 = planeNormals[plane].DotProduct(vert1);
+    float dot2 = planeNormals[plane].DotProduct(vert2);
+    if (dot1 < 0.0 && dot2 < 0.0) {
+      // If both vertices of the line are outside the frustum, we can reject
+      // the entire line.
+      return false;
+    }
+
+    if (dot1 < 0.0 || dot2 < 0.0) {
+      // Find the intersection between the line and the frustum clipping plane
+      float t = -dot1 / (dot2 - dot1);
+      Point4D intersect = vert2 * t + vert1 * (1.0 - t);
+
+      // Trim the end of the line that was outside the frustum
+      if (dot1 < 0.0) {
+        vert1 = intersect;
+      } else {
+        vert2 = intersect;
+      }
+    }
+  }
+
+  if (vert1.w == 0.0) {
+    // If a point lies on the intersection of the clipping planes at
+    // (0,0,0,0), we must avoid a division by zero w component.
+    aPoint1 = Point(0.0, 0.0);
+  } else {
+    aPoint1 = vert1.As2DPoint();
+  }
+
+  if (vert2.w == 0.0) {
+    // If a point lies on the intersection of the clipping planes at
+    // (0,0,0,0), we must avoid a division by zero w component.
+    aPoint2 = Point(0.0, 0.0);
+  } else {
+    aPoint2 = vert2.As2DPoint();
+  }
+
+  return true;
 }
 
 size_t

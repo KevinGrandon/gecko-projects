@@ -1018,9 +1018,7 @@ CompositorOGL::DrawQuad(const Rect& aRect,
   }
 
   {
-    // XXX: This doesn't handle 3D transforms. It also doesn't handled rotated
-    //      quads. Fix me.
-    const Rect destRect = aTransform.TransformBounds(aRect);
+    const Rect destRect = aTransform.TransformAndClipBounds(aRect, aClipRect);
     mPixelsFilled += destRect.width * destRect.height;
   }
 

@@ -5506,7 +5506,7 @@ bool nsDisplayTransform::UntransformRect(const nsRect &aTransformedBounds,
 bool nsDisplayTransform::UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
                                                 nsRect *aOutRect)
 {
-  const gfx3DMatrix& matrix = To3DMatrix(GetTransform());
+  const Matrix4x4& matrix = GetTransform();
   if (matrix.IsSingular())
     return false;
 
@@ -5525,7 +5525,7 @@ bool nsDisplayTransform::UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
                       NSAppUnitsToFloatPixels(childBounds.height, factor));
 
   /* We want to untransform the matrix, so invert the transformation first! */
-  result = ToMatrix4x4(matrix.Inverse()).ProjectRectBounds(result, childGfxBounds);
+  result = matrix.Inverse().ProjectRectBounds(result, childGfxBounds);
 
   *aOutRect = nsLayoutUtils::RoundGfxRectToAppRect(ThebesRect(result), factor);
 

@@ -617,6 +617,19 @@ gfx3DMatrix::Transform4D(const Point4D& aPoint) const
 gfxRect
 gfx3DMatrix::TransformBounds(const gfxRect& rect) const
 {
+
+  Rect ret;
+
+  Matrix4x4 mat(_11, _12, _13, _14,
+                _21, _22, _23, _24,
+                _31, _32, _33, _34,
+                _41, _42, _43, _44);
+
+  ret = mat.TransformBounds(Rect(rect.x, rect.y, rect.width, rect.height));
+
+  return gfxRect(ret.x, ret.y, ret.width, ret.height);
+  /*
+
   gfxPoint points[4];
 
   points[0] = Transform(rect.TopLeft());
@@ -639,6 +652,7 @@ gfx3DMatrix::TransformBounds(const gfxRect& rect) const
   }
 
   return gfxRect(min_x, min_y, max_x - min_x, max_y - min_y);
+  */
 }
 
 gfxQuad 
