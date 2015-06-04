@@ -69,6 +69,7 @@ this.SystemMessagePermissionsTable = {
   "dummy-system-message": { }, // for system message testing framework
   "dummy-system-message2": { }, // for system message testing framework
   "headset-button": { },
+  "key-press": { },
   "icc-stkcommand": {
     "settings": ["read", "write"]
   },
