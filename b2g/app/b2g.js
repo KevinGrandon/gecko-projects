@@ -34,6 +34,8 @@ pref("browser.tabs.remote.autostart.1", false);
 pref("browser.tabs.remote.autostart.2", false);
 #endif
 
+pref("b2g.shell.forwardAllKeyEvents", false);
+
 // Bug 945235: Prevent all bars to be considered visible:
 pref("toolkit.defaultChromeFeatures", "chrome,dialog=no,close,resizable,scrollbars,extrachrome");
 

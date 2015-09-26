@@ -503,7 +503,14 @@ var shell = {
     } else if (mediaKeys[evt.key]) {
       type = 'media-button';
       message = mediaKeys[evt.key];
-    } else {
+    } else if (Services.prefs.getBoolPref('b2g.shell.forwardAllKeyEvents')){
+      gSystemMessenger.broadcastMessage('key-press', {
+        key: evt.key,
+        metaKey: evt.metaKey,
+        ctrlKey: evt.ctrlKey,
+        altKey: evt.altKey,
+        shiftKey: evt.shiftKey
+      });
       return;
     }
 
